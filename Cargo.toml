@@ -1,0 +1,7 @@
+[package]
+name = "cpuparty"
+version = "0.1.0"
+authors = ["Cameron Finucane <cpf37@cornell.edu>"]
+
+[dependencies]
+nix = "0.10.0"
