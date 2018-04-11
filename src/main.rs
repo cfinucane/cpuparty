@@ -13,31 +13,28 @@ fn compute() {
     unsafe { asm!("PAUSE") } 
 }
 
+fn bind_to_cpu(cpuid: usize) {
+    let mut cpuset = nix::sched::CpuSet::new();
+
+    match cpuset.set(cpuid) {
+      Ok(_) => (),
+      Err(_) => panic!("Can't modify CpuSet")
+    }
+
+    let pid = nix::unistd::getpid();
+    match nix::sched::sched_setaffinity(pid, &cpuset) {
+      Ok(_) => (),
+      Err(_) => panic!("Can't set affinity")
+    }
+}
+
 fn main() {
     const NUM_CORES: usize = 24;  // TODO: get dynamically
 
-    let mut cpuset = nix::sched::CpuSet::new();
-
-    let pid = nix::unistd::getpid();
     println!("🎉  let's get this party started 🎉");
 
     for cpuid in 0..(NUM_CORES-1) {
-      for n in 0..(NUM_CORES-1) {
-        match cpuset.unset(n) {
-          Ok(_) => (),
-          Err(_) => panic!("can't unset")
-        }
-      }
-
-      match cpuset.set(cpuid) {
-        Ok(_) => (),
-        Err(_) => panic!("can't set")
-      }
-
-      match nix::sched::sched_setaffinity(pid, &cpuset) {
-        Ok(_) => (),
-        Err(_) => panic!("can't set affinity")
-      }
+      bind_to_cpu(cpuid);
 
       let period = time::Instant::now();
       while period.elapsed().as_secs() < 1 {
