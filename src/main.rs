@@ -19,7 +19,7 @@ fn main() {
     let mut cpuset = nix::sched::CpuSet::new();
 
     let pid = nix::unistd::getpid();
-    println!("Hello, world!");
+    println!("🎉  let's get this party started 🎉");
 
     for cpuid in 0..(NUM_CORES-1) {
       for n in 0..(NUM_CORES-1) {
