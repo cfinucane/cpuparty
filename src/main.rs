@@ -2,12 +2,13 @@
 #![feature(asm)]
 
 // TODO: take into account existing load of other processes using feedback loop
-// TODO: multiple threds
 // TODO: audio input lol
 
 use std::thread;
 use std::time;
 extern crate nix;
+
+const SCHED_SLICE_MS: usize = 40;
 
 fn compute() { 
     unsafe { asm!("PAUSE") } 
@@ -21,29 +22,50 @@ fn bind_to_cpu(cpuid: usize) {
       Err(_) => panic!("Can't modify CpuSet")
     }
 
-    let pid = nix::unistd::getpid();
-    match nix::sched::sched_setaffinity(pid, &cpuset) {
+    let tid = nix::unistd::gettid();
+    match nix::sched::sched_setaffinity(tid, &cpuset) {
       Ok(_) => (),
       Err(_) => panic!("Can't set affinity")
     }
 }
 
+fn worker(cpuid: usize) {
+    bind_to_cpu(cpuid);
+
+    let duty: f32 = (cpuid as f32)/24.0;
+
+    let lifetime = time::Instant::now();
+    while lifetime.elapsed().as_secs() < 4 {
+      let work_time_ms = (duty * (SCHED_SLICE_MS as f32)) as u32;
+      let sleep_time_us = ((1.0 - duty) * (SCHED_SLICE_MS as f32) * 1e6).floor() as u32;
+
+      let work = time::Instant::now();
+      while work.elapsed().subsec_millis() < work_time_ms {
+          compute();
+      }
+
+      thread::sleep(std::time::Duration::new(0, sleep_time_us)); 
+    }
+}
+
 fn main() {
     const NUM_CORES: usize = 24;  // TODO: get dynamically
+    let mut workers = Vec::with_capacity(NUM_CORES);
 
     println!("🎉  let's get this party started 🎉");
 
-    for cpuid in 0..(NUM_CORES-1) {
-      bind_to_cpu(cpuid);
-
-      let period = time::Instant::now();
-      while period.elapsed().as_secs() < 1 {
-        let work = time::Instant::now();
-        while work.elapsed().subsec_millis() < 10 {
-            compute();
-        }
-
-        thread::sleep(std::time::Duration::new(0, 20_000_000));
+    for cpuid in 0..NUM_CORES {
+      match thread::Builder::new().name(format!("worker for core{}", cpuid))
+                  .spawn(move || { worker(cpuid) }) {
+        Ok(child) => workers.push(child),
+        Err(_) => panic!("Can't spawn thread")
       }
     }
+
+  workers.into_iter().for_each(|w| { 
+    match w.join() {
+      Ok(_) => (),
+      Err(_) => panic!("Can't join")
+    }
+  });
 }
