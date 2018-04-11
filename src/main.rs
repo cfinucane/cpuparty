@@ -6,6 +6,7 @@
 
 use std::thread;
 use std::time;
+use std::f32::consts::PI;
 extern crate nix;
 
 const SCHED_SLICE_MS: usize = 40;
@@ -32,7 +33,7 @@ fn bind_to_cpu(cpuid: usize) {
 fn worker(cpuid: usize) {
     bind_to_cpu(cpuid);
 
-    let duty: f32 = (cpuid as f32)/24.0;
+    let duty: f32 = (PI * (cpuid as f32)/24.0).sin();
 
     let lifetime = time::Instant::now();
     while lifetime.elapsed().as_secs() < 4 {
